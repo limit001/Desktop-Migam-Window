@@ -4,7 +4,7 @@ import dragged01 from "../../images/characters/gamjabot/extra/frames/dragged/01.
 import dragged02 from "../../images/characters/gamjabot/extra/frames/dragged/02.png";
 import dragged03 from "../../images/characters/gamjabot/extra/frames/dragged/03.png";
 import hardImpact00 from "../../images/characters/gamjabot/extra/frames/hard-impact/00.png";
-import focused00 from "../../images/characters/gamjabot/extra/frames/focused/00.png";
+import focusedGlareStrip from "../../images/characters/gamjabot/extra/frames/focused-glare-strip-v1.png";
 import singingDanceSheet from "../../images/characters/gamjabot/extra/frames/singing-dance-sheet-v1.png";
 import lowBatteryCarrySheet from "../../images/characters/gamjabot/extra/frames/low-battery-carry-sheet-v1.png";
 import alert00 from "../../running/alert/0.png";
@@ -37,6 +37,7 @@ import pullUpStrip from "../../images/characters/gamjabot/extra/climbing/pull-up
 import fallStrip from "../../images/characters/gamjabot/extra/climbing/fall-strip-v1.png";
 import ropeThrowStrip from "../../images/characters/gamjabot/extra/climbing/rope-throw-strip-v2.png";
 import ropeClimbStrip from "../../images/characters/gamjabot/extra/climbing/rope-climb-strip-v2.png";
+import { nextFrameStep, type FrameStep } from "./frame-timing";
 import type { CostumeSlot } from "../costumes/catalog";
 import type { CostumeAlignment } from "../costumes/alignment";
 
@@ -77,6 +78,16 @@ export type PetAnimation =
 
 const DISPLAY_CELL_WIDTH = 96;
 const DISPLAY_CELL_HEIGHT = 104;
+// 집중 포즈 원본은 1186x1327이라 104px 높이에 맞추면 93px 폭이 된다.
+const FOCUSED_FRAME_WIDTH = 93;
+// 2초 가만히 있다 미간을 0.96초 찡그리기를 반복하고, 두 번마다 시선을 옮긴다.
+// scripts/generate-focused-glare.py의 FRAMES 유지 tick과 순서가 같아야 한다.
+const FOCUSED_FRAME_HOLDS = [
+  17, 2, 4, 2, 17, 2, 4, 2, 1,
+  17, 2, 4, 2, 17, 2, 4, 2, 1,
+  17, 2, 4, 2, 17, 2, 4, 2, 1,
+  17, 2, 4, 2, 17, 2, 4, 2, 1,
+] as const;
 const DISPLAY_ATLAS_WIDTH = 768;
 const DISPLAY_ATLAS_HEIGHT = 1144;
 
@@ -101,6 +112,7 @@ type AnimationDefinition =
       frameWidth: number;
       offsetY: number;
       mirror?: boolean;
+      holds?: readonly number[];
     };
 
 const loadFrames = {
@@ -128,7 +140,16 @@ const animations: Record<PetAnimation, AnimationDefinition> = {
   landing: { source: "images", images: [landing00, landing01, landing02, landing03], frames: 4 },
   "window-tumble": { source: "images", images: [landing00, landing01, landing02, landing03], frames: 4 },
   "hard-impact": { source: "images", images: [hardImpact00], frames: 1 },
-  focused: { source: "images", images: [focused00], frames: 1 },
+  focused: {
+    source: "strip",
+    image: focusedGlareStrip,
+    frames: FOCUSED_FRAME_HOLDS.length,
+    displayWidth: FOCUSED_FRAME_WIDTH * FOCUSED_FRAME_HOLDS.length,
+    displayHeight: DISPLAY_CELL_HEIGHT,
+    frameWidth: FOCUSED_FRAME_WIDTH,
+    offsetY: 0,
+    holds: FOCUSED_FRAME_HOLDS,
+  },
   dancing: {
     source: "grid",
     image: singingDanceSheet,
@@ -243,9 +264,16 @@ const animations: Record<PetAnimation, AnimationDefinition> = {
   failed: { source: "atlas", row: 5, frames: 8 },
 };
 
+// 드래그 스프라이트에서 잰 두 눈 중심. 96x104 표시 영역 기준이다.
+const DRAG_EYES = [
+  { side: "left", x: 33, y: 26 },
+  { side: "right", x: 59, y: 25 },
+] as const;
+
 export interface PetSprite {
   element: HTMLDivElement;
   setAnimation(animation: PetAnimation): void;
+  setLaser(active: boolean): void;
   setCostume(costume: { url: string; slot: CostumeSlot; alignment: CostumeAlignment } | null): void;
   advanceFrame(): void;
 }
@@ -264,7 +292,18 @@ export function createPetSprite(): PetSprite {
   costume.draggable = false;
   element.append(costume);
 
+  const lasers = DRAG_EYES.map(({ side, x, y }) => {
+    const beam = document.createElement("span");
+    beam.className = `pet-laser pet-laser-${side}`;
+    beam.style.setProperty("--eye-x", `${x}px`);
+    beam.style.setProperty("--eye-y", `${y}px`);
+    beam.hidden = true;
+    element.append(beam);
+    return beam;
+  });
+
   let animation: PetAnimation = "idle";
+  let step: FrameStep = { frame: 0, ticks: 0 };
   let frame = 0;
 
   const render = (): void => {
@@ -297,8 +336,8 @@ export function createPetSprite(): PetSprite {
     }
 
     element.style.backgroundImage = `url("${definition.images[frame]}")`;
-    element.style.backgroundSize = animation === "focused" || definition.contain ? "contain" : `${DISPLAY_CELL_WIDTH}px ${DISPLAY_CELL_HEIGHT}px`;
-    element.style.backgroundPosition = animation === "focused" || definition.contain ? "center bottom" : "0 0";
+    element.style.backgroundSize = definition.contain ? "contain" : `${DISPLAY_CELL_WIDTH}px ${DISPLAY_CELL_HEIGHT}px`;
+    element.style.backgroundPosition = definition.contain ? "center bottom" : "0 0";
   };
 
   render();
@@ -308,9 +347,14 @@ export function createPetSprite(): PetSprite {
     setAnimation(nextAnimation) {
       if (nextAnimation !== animation) {
         animation = nextAnimation;
+        step = { frame: 0, ticks: 0 };
         frame = 0;
         render();
       }
+    },
+    setLaser(active) {
+      for (const beam of lasers) beam.hidden = !active;
+      element.dataset.laser = active ? "on" : "off";
     },
     setCostume(nextCostume) {
       costume.hidden = !nextCostume;
@@ -329,7 +373,11 @@ export function createPetSprite(): PetSprite {
       }
     },
     advanceFrame() {
-      frame = (frame + 1) % animations[animation].frames;
+      const definition = animations[animation];
+      const holds = "holds" in definition ? definition.holds : undefined;
+      step = nextFrameStep(step, definition.frames, holds);
+      if (step.frame === frame) return;
+      frame = step.frame;
       render();
     },
   };

@@ -293,6 +293,43 @@ body[data-window="climb-rope"] #app {
   -webkit-user-drag: none;
 }
 .pet-costume[hidden] { display: none; }
+.pet-laser {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--eye-y) - 3px);
+  left: var(--eye-x);
+  width: 180px;
+  height: 6px;
+  transform-origin: 0 50%;
+  transform: rotate(180deg);
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / .96) 0 5%,
+    rgb(255 226 128 / .96) 6% 16%,
+    rgb(255 78 52 / .92) 17% 66%,
+    rgb(255 78 52 / 0) 100%
+  );
+  filter: drop-shadow(0 0 5px rgb(255 108 72 / .95));
+  pointer-events: none;
+  animation: pet-laser-flicker 150ms steps(2) infinite;
+}
+.pet-laser[hidden] { display: none; }
+.pet-laser::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 255 255 / .95) 0 22%, rgb(255 160 72 / .7) 40%, transparent 72%);
+  content: "";
+}
+@keyframes pet-laser-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .74; }
+}
 .pet-sprite[data-animation="running-left"] .pet-costume,
 .pet-sprite[data-animation="running-right"] .pet-costume,
 .pet-sprite[data-animation^="load-"] .pet-costume { animation: pet-costume-bob 240ms steps(2) infinite; }

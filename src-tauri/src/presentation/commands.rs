@@ -111,6 +111,9 @@ const PET_WINDOW_WIDTH: u32 = 128;
 const PET_WINDOW_HEIGHT: u32 = 128;
 const MUSIC_STAGE_WIDTH: u32 = 280;
 const MUSIC_STAGE_HEIGHT: u32 = 220;
+// 빔이 왼쪽으로 곧게 나가므로 가로로만 넓힌다. 높이는 기본값 그대로 둔다.
+const DRAG_LASER_WIDTH: u32 = 420;
+const DRAG_LASER_HEIGHT: u32 = PET_WINDOW_HEIGHT;
 
 fn anchored_window_position(
     x: i32,
@@ -128,8 +131,8 @@ fn anchored_window_position(
     )
 }
 
-#[tauri::command]
-pub fn set_music_stage_expanded(app: AppHandle, expanded: bool) -> Result<(), String> {
+/// 펫 창 크기를 바꾸되 화면에 보이는 펫의 하단 중앙 위치는 유지한다.
+fn resize_pet_window(app: &AppHandle, target_width: u32, target_height: u32) -> Result<(), String> {
     let pet = app
         .get_webview_window("pet")
         .ok_or_else(|| "pet window is unavailable".to_owned())?;
@@ -139,11 +142,6 @@ pub fn set_music_stage_expanded(app: AppHandle, expanded: bool) -> Result<(), St
     let size = pet
         .outer_size()
         .map_err(|_| "pet size is unavailable".to_owned())?;
-    let (target_width, target_height) = if expanded {
-        (MUSIC_STAGE_WIDTH, MUSIC_STAGE_HEIGHT)
-    } else {
-        (PET_WINDOW_WIDTH, PET_WINDOW_HEIGHT)
-    };
     let (target_x, target_y) = anchored_window_position(
         position.x,
         position.y,
@@ -153,9 +151,27 @@ pub fn set_music_stage_expanded(app: AppHandle, expanded: bool) -> Result<(), St
         target_height,
     );
     pet.set_position(tauri::PhysicalPosition::new(target_x, target_y))
-        .map_err(|_| "music stage could not be positioned".to_owned())?;
+        .map_err(|_| "pet window could not be positioned".to_owned())?;
     pet.set_size(tauri::PhysicalSize::new(target_width, target_height))
-        .map_err(|_| "music stage could not be resized".to_owned())
+        .map_err(|_| "pet window could not be resized".to_owned())
+}
+
+#[tauri::command]
+pub fn set_music_stage_expanded(app: AppHandle, expanded: bool) -> Result<(), String> {
+    if expanded {
+        resize_pet_window(&app, MUSIC_STAGE_WIDTH, MUSIC_STAGE_HEIGHT)
+    } else {
+        resize_pet_window(&app, PET_WINDOW_WIDTH, PET_WINDOW_HEIGHT)
+    }
+}
+
+#[tauri::command]
+pub fn set_drag_laser_expanded(app: AppHandle, expanded: bool) -> Result<(), String> {
+    if expanded {
+        resize_pet_window(&app, DRAG_LASER_WIDTH, DRAG_LASER_HEIGHT)
+    } else {
+        resize_pet_window(&app, PET_WINDOW_WIDTH, PET_WINDOW_HEIGHT)
+    }
 }
 
 fn climb_rope_rect(x: i32, top: i32, bottom: i32, side: &str) -> (i32, i32, u32) {

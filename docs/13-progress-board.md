@@ -289,6 +289,11 @@
 | 2026-08-24 | 사진 배달 캐릭터 CSP 수정·v0.1.2 준비 | 로컬 통과 | `img-src`에 `blob:` 허용, 회귀 테스트 Red→Green, 프런트 53개·Rust 49개·typecheck·production build·fmt·Clippy·Windows x64 MSI/NSIS build 통과 |
 | 2026-08-30 | 희귀 사진 크기·배달 속도 조정 | 통과 | 일반 사진 크기는 유지하고 희귀 사진만 85%로 축소, 이동 시간을 6초로 단축; 프런트 13파일 66개·typecheck·production build 통과 |
 | 2026-08-30 | v0.2.0 최종 릴리스 | 통과 | PR #40·main CI, 프런트 66개·Rust 51개·typecheck·production/NSIS release build·fmt·Clippy 통과; Windows x64 설치 파일과 SHA-256 게시 |
+| 2026-08-31 | 집중 모드 중 펫 위치 이동 허용 | 통과 | 드래그 잠금을 해제하고 놓은 뒤 타이머 상태로 복귀·말풍선 재배치 연결; 프런트 13파일 67개·typecheck·production build 통과, Windows 실기 확인 대기 |
+| 2026-08-31 | 집중 미간 찌푸림 | 통과 | 눈 사이 고정 주름 두 줄과 눈꺼풀 54%로 집중 표정 강화; 프런트 15파일 73개·typecheck 통과, Windows 실기 확인 대기 |
+| 2026-08-31 | 드래그 눈 레이저 | 통과 | 드래그 중 펫 창을 420×128로 넓히고 두 눈에서 왼쪽으로 곧게 빔 발사; 프런트 16파일 76개·Rust 51개·typecheck·fmt·Clippy 통과, Windows 실기 확인 대기 |
+| 2026-08-31 | 집중 미간 주기적 찡그림 | 통과 | 미간 3단계와 눈꺼풀 연동으로 3초마다 0.96초 찡그림, 36프레임 스트립(6696×208, 66KB); 프런트 15파일 74개·typecheck·production build 통과, Windows 실기 확인 대기 |
+| 2026-08-31 | 집중 쨰려보는 눈동자 애니메이션 | 통과 | 원본 집중 포즈에서 8프레임 응시 스트립(1488×208, 38KB) 생성해 정지 이미지 대체, 프레임별 hold로 2.4~3.1초 응시; 프런트 15파일 73개·typecheck·production build 통과, Windows 실기 확인 대기 |
 
 ## 시간 예산
 

@@ -27,6 +27,7 @@ import {
   getVisiblePositionBounds,
   isPetMotionLocked,
   pickHorizontalTarget,
+  resolvePetSettlePhase,
   type Point,
   type PositionBounds,
   type ClimbSide,
@@ -258,6 +259,8 @@ export function startPetMotion(sprite: PetSprite): () => void {
   let mode: RuntimeMode = idleMode();
   let interactionId = 0;
   let timerActive = false;
+  let dragLaserActive = false;
+  let timerPhase: TimerSnapshot["phase"] = "stopped";
   let youtubeMusicActive = false;
   let unlistenTimer: (() => void) | null = null;
   let unlistenTodo: (() => void) | null = null;
@@ -295,7 +298,10 @@ export function startPetMotion(sprite: PetSprite): () => void {
       ? 150
       : mode.kind === "climbing"
         ? 135
-        : 120 / resourceSpeedMultiplier;
+        // 집중 중에는 CPU 부하로 시선이 빨라지지 않게 고정 간격을 쓴다.
+        : mode.kind === "timer"
+          ? 120
+          : 120 / resourceSpeedMultiplier;
     if (now - lastAnimationFrameAt >= frameMilliseconds) {
       sprite.advanceFrame();
       lastAnimationFrameAt = now;
@@ -312,6 +318,7 @@ export function startPetMotion(sprite: PetSprite): () => void {
       hideClimbRope();
     }
     mode = nextMode;
+    if (nextMode.kind !== "dragged" && dragLaserActive) void setDragLaser(false);
     const showMusicStage = nextMode.kind === "music";
     if (showMusicStage !== musicStageExpanded) {
       musicStageExpanded = showMusicStage;
@@ -380,8 +387,32 @@ export function startPetMotion(sprite: PetSprite): () => void {
     void emit("pet://drag-state", { dragging });
   };
 
+  const setDragLaser = async (active: boolean): Promise<void> => {
+    if (dragLaserActive === active) return;
+    dragLaserActive = active;
+    sprite.setLaser(active);
+    // 빔이 창 밖으로 잘리지 않도록 드래그 중에만 펫 창을 넓힌다.
+    await invoke("set_drag_laser_expanded", { expanded: active }).catch(() => undefined);
+  };
+
+  const settleAfterInteraction = (
+    nowMilliseconds = performance.now(),
+    supportWindowId: string | null = null,
+  ): void => {
+    const settlePhase = resolvePetSettlePhase(timerPhase);
+    if (settlePhase) {
+      setMode(
+        { kind: "timer", phase: settlePhase, supportWindowId },
+        settlePhase === "focus" ? "focused" : "idle",
+      );
+      void invoke("position_timer_bubble").catch(() => undefined);
+      return;
+    }
+    setMode(idleMode(nowMilliseconds, supportWindowId), "idle");
+  };
+
   const beginDrag = async (event: PointerEvent): Promise<void> => {
-    if (event.button !== 0 || timerActive || mode.kind === "battery-trip") return;
+    if (event.button !== 0 || mode.kind === "battery-trip") return;
     event.preventDefault();
     surfaceStay = null;
     sprite.element.setPointerCapture(event.pointerId);
@@ -397,6 +428,9 @@ export function startPetMotion(sprite: PetSprite): () => void {
     };
     setMode(draggedMode, "dragged");
     setDragBubbleVisibility(true);
+    // 창 크기가 바뀐 뒤에 기준점을 잡아야 드래그가 튀지 않는다.
+    await setDragLaser(true);
+    if (mode !== draggedMode || draggedMode.interactionId !== interactionId) return;
 
     const [cursor, windowPosition] = await Promise.all([
       cursorPosition(),
@@ -416,9 +450,12 @@ export function startPetMotion(sprite: PetSprite): () => void {
     if (sprite.element.hasPointerCapture(event.pointerId)) {
       sprite.element.releasePointerCapture(event.pointerId);
     }
-
     const draggedMode = mode;
     const finishingInteractionId = draggedMode.interactionId;
+    // 던지기 물리가 원래 창 크기를 기준으로 계산되도록 먼저 되돌린다.
+    await setDragLaser(false);
+    if (mode !== draggedMode || finishingInteractionId !== interactionId) return;
+
     const cursor = await cursorPosition();
     appendPointerSample(draggedMode.samples, cursor, performance.now());
     if (
@@ -431,7 +468,7 @@ export function startPetMotion(sprite: PetSprite): () => void {
 
     const velocity = estimateThrowVelocity(draggedMode.samples);
     if (!velocity) {
-      setMode(idleMode(), "idle");
+      settleAfterInteraction();
       return;
     }
 
@@ -444,7 +481,7 @@ export function startPetMotion(sprite: PetSprite): () => void {
 
     const fallbackMonitor = monitor ?? (await resolveMonitor());
     if (!fallbackMonitor) {
-      setMode(idleMode(), "idle");
+      settleAfterInteraction();
       return;
     }
 
@@ -883,7 +920,7 @@ export function startPetMotion(sprite: PetSprite): () => void {
 
   const updateRecovery = (recovery: RecoveryMode, nowMilliseconds: number): void => {
     if (nowMilliseconds >= recovery.untilMilliseconds) {
-      setMode(idleMode(nowMilliseconds, recovery.supportWindowId ?? null), "idle");
+      settleAfterInteraction(nowMilliseconds, recovery.supportWindowId ?? null);
     }
   };
 
@@ -1029,7 +1066,7 @@ export function startPetMotion(sprite: PetSprite): () => void {
     if (mode.kind === "dragged" && event.pointerId === mode.pointerId) {
       interactionId += 1;
       setDragBubbleVisibility(false);
-      setMode(idleMode(), "idle");
+      settleAfterInteraction();
     }
   };
 
@@ -1059,6 +1096,7 @@ export function startPetMotion(sprite: PetSprite): () => void {
   const applyTimerState = (state: TimerSnapshot): void => {
     const active = isPetMotionLocked(state.phase);
     timerActive = active;
+    timerPhase = state.phase;
     if (active) {
       if (mode.kind === "battery-trip") batteryEventPending = true;
       if (mode.kind === "dragged") setDragBubbleVisibility(false);

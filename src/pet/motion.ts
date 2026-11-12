@@ -282,3 +282,9 @@ export type PetTimerPhase = "stopped" | "focus" | "shortBreak" | "longBreak" | "
 export function isPetMotionLocked(phase: PetTimerPhase): boolean {
   return phase === "focus" || phase === "paused";
 }
+
+export type PetSettlePhase = Exclude<PetTimerPhase, "stopped" | "shortBreak" | "longBreak">;
+
+export function resolvePetSettlePhase(phase: PetTimerPhase): PetSettlePhase | null {
+  return isPetMotionLocked(phase) ? (phase as PetSettlePhase) : null;
+}

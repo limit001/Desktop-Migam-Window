@@ -6,6 +6,7 @@ import {
   getVisiblePositionBounds,
   pickHorizontalTarget,
   isPetMotionLocked,
+  resolvePetSettlePhase,
   findClimbCollision,
   getSurfaceWalkingBounds,
   getClimbRopeGeometry,
@@ -81,6 +82,14 @@ describe("pet motion", () => {
     expect(isPetMotionLocked("shortBreak")).toBe(false);
     expect(isPetMotionLocked("longBreak")).toBe(false);
     expect(isPetMotionLocked("stopped")).toBe(false);
+  });
+
+  it("returns a dropped pet to the timer stance while focus is locked", () => {
+    expect(resolvePetSettlePhase("focus")).toBe("focus");
+    expect(resolvePetSettlePhase("paused")).toBe("paused");
+    expect(resolvePetSettlePhase("shortBreak")).toBeNull();
+    expect(resolvePetSettlePhase("longBreak")).toBeNull();
+    expect(resolvePetSettlePhase("stopped")).toBeNull();
   });
 
   it("moves a window jump along a slow raised arc", () => {

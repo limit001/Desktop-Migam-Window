@@ -147,6 +147,7 @@ pub fn run() {
             presentation::commands::get_battery_state,
             presentation::commands::test_low_battery_event,
             presentation::commands::set_music_stage_expanded,
+            presentation::commands::set_drag_laser_expanded,
             presentation::commands::show_climb_rope,
             presentation::commands::hide_climb_rope,
             presentation::commands::get_gamcha_state,
