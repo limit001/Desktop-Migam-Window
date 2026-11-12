@@ -112,6 +112,7 @@ const PET_WINDOW_HEIGHT: u32 = 128;
 const MUSIC_STAGE_WIDTH: u32 = 280;
 const MUSIC_STAGE_HEIGHT: u32 = 220;
 // 빔이 왼쪽으로 곧게 나가므로 가로로만 넓힌다. 높이는 기본값 그대로 둔다.
+// 값은 CSS 논리 픽셀이다. 물리 픽셀로 그대로 주면 배율 125% 이상에서 빔 끝이 잘린다.
 const DRAG_LASER_WIDTH: u32 = 420;
 const DRAG_LASER_HEIGHT: u32 = PET_WINDOW_HEIGHT;
 
@@ -131,11 +132,27 @@ fn anchored_window_position(
     )
 }
 
+/// CSS 논리 픽셀을 창 물리 픽셀로 바꾼다. 배율을 모르면 1배로 둔다.
+fn logical_to_physical(logical: u32, scale: f64) -> u32 {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    (f64::from(logical) * scale).round().max(1.0) as u32
+}
+
 /// 펫 창 크기를 바꾸되 화면에 보이는 펫의 하단 중앙 위치는 유지한다.
+/// `target_width`와 `target_height`는 CSS 논리 픽셀이다.
 fn resize_pet_window(app: &AppHandle, target_width: u32, target_height: u32) -> Result<(), String> {
     let pet = app
         .get_webview_window("pet")
         .ok_or_else(|| "pet window is unavailable".to_owned())?;
+    let scale = pet
+        .scale_factor()
+        .map_err(|_| "pet scale is unavailable".to_owned())?;
+    let physical_width = logical_to_physical(target_width, scale);
+    let physical_height = logical_to_physical(target_height, scale);
     let position = pet
         .outer_position()
         .map_err(|_| "pet position is unavailable".to_owned())?;
@@ -147,12 +164,12 @@ fn resize_pet_window(app: &AppHandle, target_width: u32, target_height: u32) -> 
         position.y,
         size.width,
         size.height,
-        target_width,
-        target_height,
+        physical_width,
+        physical_height,
     );
     pet.set_position(tauri::PhysicalPosition::new(target_x, target_y))
         .map_err(|_| "pet window could not be positioned".to_owned())?;
-    pet.set_size(tauri::PhysicalSize::new(target_width, target_height))
+    pet.set_size(tauri::PhysicalSize::new(physical_width, physical_height))
         .map_err(|_| "pet window could not be resized".to_owned())
 }
 
@@ -932,7 +949,9 @@ pub fn quit_application(app: AppHandle) {
 }
 #[cfg(test)]
 mod gamcha_notice_position_tests {
-    use super::{anchored_window_position, climb_rope_rect, gamcha_notice_desired_y};
+    use super::{
+        anchored_window_position, climb_rope_rect, gamcha_notice_desired_y, logical_to_physical,
+    };
 
     #[test]
     fn anchors_the_reward_notice_at_the_same_pet_offset_as_the_timer() {
@@ -955,6 +974,30 @@ mod gamcha_notice_position_tests {
         assert_eq!(
             anchored_window_position(424, 608, 280, 220, 128, 128),
             (500, 700)
+        );
+    }
+
+    #[test]
+    fn pet_window_size_follows_display_scale() {
+        assert_eq!(logical_to_physical(420, 1.0), 420);
+        assert_eq!(logical_to_physical(128, 1.0), 128);
+        assert_eq!(logical_to_physical(420, 1.25), 525);
+        assert_eq!(logical_to_physical(128, 1.25), 160);
+        assert_eq!(logical_to_physical(420, 1.5), 630);
+        assert_eq!(logical_to_physical(128, 1.5), 192);
+        assert_eq!(logical_to_physical(420, 2.0), 840);
+        assert_eq!(logical_to_physical(420, 0.0), 420);
+        assert_eq!(logical_to_physical(420, f64::NAN), 420);
+    }
+
+    #[test]
+    fn scaled_drag_laser_resize_keeps_the_pet_bottom_center() {
+        let width = logical_to_physical(420, 1.5);
+        let height = logical_to_physical(128, 1.5);
+        // 150%에서 기본 창은 192물리 픽셀이다. 중심 x=196, 바닥 y=992.
+        assert_eq!(
+            anchored_window_position(100, 800, 192, 192, width, height),
+            (-119, 800)
         );
     }
 }

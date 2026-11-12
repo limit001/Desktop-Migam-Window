@@ -68,6 +68,15 @@ describe("드래그 레이저", () => {
     }
   });
 
+  it("창 크기는 CSS 픽셀에 디스플레이 배율을 곱한다", () => {
+    const resize = commands.slice(
+      commands.indexOf("fn resize_pet_window"),
+      commands.indexOf("pub fn set_music_stage_expanded"),
+    );
+    expect(resize).toContain("scale_factor()");
+    expect(resize).toContain("logical_to_physical");
+  });
+
   it("드래그를 벗어나면 창을 원래 크기로 되돌린다", () => {
     const runtime = readFileSync(
       new URL("../src/pet/tauri-motion-runtime.ts", import.meta.url),
